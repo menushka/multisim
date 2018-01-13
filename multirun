@@ -1,0 +1,255 @@
+#!/bin/sh
+# Created by Menushka Weeratunga
+
+helpMenu() {
+	printf "======================================================================================\n"
+	printf "Multi-Run:\n"
+	printf "A command line interface running XCode builds on multiple simulators and more.\n\n"
+	printf "Usage:\n"
+	printf "    multirun -workspace=WORKSPACE_PATH -scheme=SCHEME_NAME <options>\n\n"
+	printf "Optional Parameters:\n"
+	printf "    -version=VERSION      Version number (SDK version from build settings is default)\n\n"
+	printf "Flags:\n"
+	printf "    -b | -build           Build project to app file\n"
+	printf "    -r | -run             Run current app build on booted simulators\n"
+	printf "    -u | -uninstall       Uninstall app across all booted simulators\n"
+	printf "    -a | -all             Run command on all simulators\n"
+	printf "    -s | -start           Boot selected simulators\n"
+	printf "    -c | -close           Shutdown all simulators\n"
+	printf "    -h | -help            Display help text\n"
+	printf "======================================================================================\n"
+	exit 0
+}
+
+parseDebugAppPath() {
+	BUILD_DIR=$(echo "$1" | perl -ne 'print $1 ."\n" if /    BUILD_DIR = (.*)/s')
+	FULL_PRODUCT_NAME=$(echo "$1" | perl -ne 'print $1 ."\n" if /    FULL_PRODUCT_NAME = (.*)/s')
+	echo "$BUILD_DIR/Debug-iphonesimulator/$FULL_PRODUCT_NAME"
+}
+
+parseBundleName() {
+	BUNDLE_NAME=$(echo "$1" | perl -ne 'print $1 ."\n" if /    PRODUCT_BUNDLE_IDENTIFIER = (.*)/g')
+	echo "$BUNDLE_NAME"
+}
+
+parseVersionNumber() {
+	VERSION=$(echo "$1" | perl -ne 'print $1 ."\n" if /    SDK_VERSION = (.*)/g')
+	echo "$VERSION"
+}
+
+findFocusedPhone() {
+	DEVICE_LIST=$(xcrun simctl list)
+	SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
+	OUTPUT="$(osascript $SCRIPTPATH/findFocusedPhone.scpt 2>&1)"
+	
+	IFS="|"
+	parts=($OUTPUT)
+	
+	IFS="
+	"
+	VERSION_REGEX="-- iOS ${parts[1]} --(.*?)--"
+	DEVICE_REGEX="${parts[0]} \(([^ ]*)\) \(Booted\)"
+	LIST=$(echo $DEVICE_LIST | perl -ne "print \$1 . "\n" if /$VERSION_REGEX/s" | sed 's/(Shutdown)/(Shutdown)\\n/g' | sed 's/(Booted)/(Booted)\\n/g')
+	UUID=$(echo $LIST | perl -ne "print \$1 . \"\n\" if /$DEVICE_REGEX/s")
+	echo "${parts[0]}|$UUID"
+}
+
+perDeviceTask() {
+
+	# Split
+	IFS='|' read -r -a array <<< "$1"
+
+	# Uninstall on device if flag
+	if $uninstall_flag; then
+		printf "\x1B[0m\x1B[31m"
+		printf "Uninstalling on ${array[0]}...\n"
+		xcrun simctl terminate ${array[1]} $PACKAGE_BUNDLE &> /dev/null
+		sleep 2
+		xcrun simctl uninstall ${array[1]} $PACKAGE_BUNDLE &> /dev/null
+		printf "\x1B[0m\x1B[31m"
+		printf "Uninstalled on ${array[0]}\n"
+	fi
+
+
+	if $run_flag; then
+		# Install on device
+		printf "\x1B[0m\x1B[33m"
+		printf "Installing on ${array[0]}...\n"
+		xcrun simctl install ${array[1]} "$DEBUG_APP_PATH" &> /dev/null
+		printf "\x1B[0m\x1B[36m"
+		printf "Installed on ${array[0]}\n"
+
+		# Launch on device
+		tmp1='print "\x1B[0m\x1B[32mRunning on '
+		tmp2=': PID " . $1 . "\n" if /[^ ]*: (\d*)/s'
+		xcrun simctl launch ${array[1]} $PACKAGE_BUNDLE | perl -ne :"$tmp1${array[0]}$tmp2"
+	fi
+}
+
+startDevices() {
+	DEVICE_LIST=$(xcrun simctl list)
+
+	DEVICES_VERSIONS=$(echo "$DEVICE_LIST" | perl -ne 'print $1 . "\n" if /iOS ([^ ]*) .*? - com.apple.CoreSimulator.SimRuntime..*?\n/s')
+	printf "\x1B[0m\x1B[36m"
+	echo "$DEVICES_VERSIONS" | perl -ne 'print $. . ") " . $1 if /(.*)/s'
+	printf '\x1B[0m'
+
+	printf "Enter which version to open by number: "
+	printf "\x1B[0m\x1B[36m"
+	read versionToLoad
+	printf '\x1B[0m'
+
+	IFS="
+	" 
+	versionArray=($DEVICES_VERSIONS)
+
+	SELECTED_VERSION=${versionArray[versionToLoad-1]}
+	
+	regex_string="print \$1 . "\n" if /-- iOS $SELECTED_VERSION --(.*?)--/s"
+	LIST=$(echo $DEVICE_LIST | perl -ne $regex_string | sed 's/(Shutdown)/(Shutdown)\\n/g' | sed 's/(Booted)/(Booted)\\n/g')
+	DISPLAY=$(echo "$LIST" | perl -ne 'print $1 . "|" . $2 . "\n" if /^\s*(.*?) \(([^ ]*)\) \(Shutdown\)/s')
+
+	printf "\x1B[0m\x1B[36m"
+	echo "$DISPLAY" | perl -ne 'print $. . ") " . $1 . "\n" if /(.*?)\|(.*?)\n/s'
+	printf '\x1B[0m'
+
+	printf "Enter which devices to open by number (command-seperated for multiple): "
+	printf "\x1B[0m\x1B[36m"
+	read devicesToLoad
+	printf '\x1B[0m'
+
+	IFS="
+	" 
+	deviceArray=($DISPLAY)
+
+	IFS=","
+	for d in $devicesToLoad; do
+		IFS="|"
+		parts=(${deviceArray[d-1]})
+		printf "\x1B[0m\x1B[32m"
+		printf "Launching ${parts[0]} simulator...\n"
+		xcrun simctl boot ${parts[1]} &
+	done
+	wait
+	printf '\x1B[0m'
+	exit 0
+}
+
+closeDevices() {
+	DEVICE_LIST=$(xcrun simctl list)
+	BOOTED_TO_UNINSTALL=$(echo "$DEVICE_LIST" | perl -ne 'print $1 . "|" . $2 . "\n" if /^\s*([^:]*?) \(([^ ]*?)\) \(Booted\)/s')
+
+	IFS="
+	"
+	for d in $BOOTED_TO_UNINSTALL; do
+		IFS="|"
+		parts=($d)
+		printf "\x1B[0m\x1B[31m"
+		printf "Shutting down ${parts[0]} simulator...\n"
+		xcrun simctl shutdown ${parts[1]} &
+	done
+	wait
+	printf '\x1B[0m'
+	exit 0
+}
+
+# Listen for interrupt
+trap "echo '\x1B[0m'; exit 2" 2
+
+# Parse Arguments
+build_flag=false
+run_flag=false
+uninstall_flag=false
+all_devices=false
+while [ "$1" != "" ]; do
+    PARAM=`echo $1 | awk -F= '{print $1}'`
+    VALUE=`echo $1 | awk -F= '{print $2}'`
+    case $PARAM in
+    	-workspace)
+            WORKSPACE_FILE="$VALUE"
+            ;;
+        -scheme)
+            SCHEME_NAME="$VALUE"
+            ;;
+        -version)
+            VERSION="$VALUE"
+            ;;
+        -b | -build)
+            build_flag=true
+            ;;
+        -r | -run)
+            run_flag=true
+            ;;
+        -u | -uninstall)
+            uninstall_flag=true
+            ;;
+        -a | -all)
+            all_devices=true
+            ;;
+        -s | -start)
+			startDevices
+            ;;
+        -c | -close)
+			closeDevices
+            ;;
+        -h | -help)
+            helpMenu
+            ;;
+        *)
+            ;;
+    esac
+    shift
+done
+
+if [ "$WORKSPACE_FILE" = "" ]; then
+	echo "Workspace not provided"
+	exit 0
+fi
+
+if [ "$SCHEME_NAME" = "" ]; then
+	echo "Scheme not provided"
+	exit 0
+fi
+
+WORKSPACE_FILE_NB=$(echo "$WORKSPACE_FILE" | sed 's/\\//g')
+BUILD_SETTINGS=$(xcodebuild -showBuildSettings -workspace "$WORKSPACE_FILE_NB" -scheme "$SCHEME_NAME")
+
+# Project Properties
+DEBUG_APP_PATH=$(parseDebugAppPath "$BUILD_SETTINGS")
+PACKAGE_BUNDLE=$(parseBundleName "$BUILD_SETTINGS")
+
+if [ "$VERSION" = "" ]; then
+	VERSION=$(parseVersionNumber "$BUILD_SETTINGS")
+fi
+
+# Build project
+if $build_flag; then
+	printf "\x1B[0m\x1B[34m"
+	printf "\x1B[1mBuilding $SCHEME_NAME...\n"
+
+	printf "\x1B[0m\x1B[34m"
+	# Build project
+	xcodebuild -arch x86_64 -sdk iphonesimulator$VERSION -workspace "$WORKSPACE_FILE_NB" -scheme "$SCHEME_NAME" -parallelizeTargets  | perl -ne 'print " - Built " . $1 . " of " . $2 . "\n" if /=== BUILD TARGET (.*) OF PROJECT (.*) WITH CONFIGURATION Debug ===/s'
+
+	printf "\x1B[0m\x1B[34m"
+	printf "\x1B[1mBuild Complete\n\n"
+fi
+
+# Grab all booted devices ids
+if $all_devices; then
+	SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
+	osascript $SCRIPTPATH/focusSimulators.scpt
+
+	BOOTED_DEVICES=$(xcrun simctl list | perl -ne 'print $2 . "|" . $3 . "\n" if /(\s*)([^:]*) \(([^ ]*)\) \(Booted\)/s' | sort | uniq)
+	while read device
+	do
+		perDeviceTask "$device" &
+	done <<< "$BOOTED_DEVICES"
+	wait
+else
+	FOCUSED_DEVICE=$(findFocusedPhone)
+	perDeviceTask "$FOCUSED_DEVICE" &
+	wait
+fi
+
+echo "\x1B[0m"
