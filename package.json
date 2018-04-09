@@ -1,0 +1,20 @@
+{
+  "name": "multirun",
+  "version": "1.0.0",
+  "description": "A command line tool for building and running iOS projects on multiple simulators in parallel.",
+  "main": "multirun",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "ios",
+    "simulators",
+    "xcode",
+    "cli"
+  ],
+  "author": "Menushka Weeratunga <contact@menushka.ca>",
+  "license": "MIT",
+  "bin": {
+    "multirun": "./multirun"
+  }
+}
