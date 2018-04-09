@@ -3,10 +3,10 @@
 
 helpMenu() {
 	printf "===============================================================================================\n"
-	printf "Multi-Run:\n"
+	printf "Multi-Sim:\n"
 	printf "A command line tool for building and running iOS projects on multiple simulators in parallel.\n\n"
 	printf "Usage:\n"
-	printf "    multirun -workspace WORKSPACE_PATH -scheme SCHEME_NAME <options>\n\n"
+	printf "    multirum -workspace WORKSPACE_PATH -scheme SCHEME_NAME <options>\n\n"
 	printf "Optional Parameters:\n"
 	printf "    -version VERSION      Version number (SDK version from build settings is default)\n\n"
 	printf "Flags:\n"

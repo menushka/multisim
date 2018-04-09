@@ -1,8 +1,8 @@
 {
-  "name": "multirun",
+  "name": "multisim",
   "version": "1.0.0",
-  "description": "A command line tool for building and running iOS projects on multiple simulators in parallel.",
-  "main": "multirun",
+  "description": "A command line tool for opening, installing and running your app on multiple iOS simulators in parallel.",
+  "main": "multisim",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -15,6 +15,6 @@
   "author": "Menushka Weeratunga <contact@menushka.ca>",
   "license": "MIT",
   "bin": {
-    "multirun": "./multirun"
+    "multisim": "./multisim"
   }
 }
