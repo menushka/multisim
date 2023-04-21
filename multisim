@@ -8,7 +8,8 @@ helpMenu() {
 	printf "Usage:\n"
 	printf "    multirum -workspace WORKSPACE_PATH -scheme SCHEME_NAME <options>\n\n"
 	printf "Optional Parameters:\n"
-	printf "    -version VERSION      Version number (SDK version from build settings is default)\n\n"
+	printf "    -version VERSION      Version number (SDK version from build settings is default)\n"
+	printf "    -package PACKAGE      Override package id if one from Info.plist is not final\n\n"
 	printf "Flags:\n"
 	printf "    -b | -build           Build project to app file\n"
 	printf "    -r | -run             Install and run app on simulator\n"
@@ -186,6 +187,9 @@ while [ "$1" != "" ]; do
 	        -version)
 	            VERSION="$2"
 	            ;;
+	        -package)
+	            PACKAGE="$2"
+	            ;;
 	        -b | -build)
 	            build_flag=true
 	            ;;
@@ -233,14 +237,18 @@ PROJECT_FILE_NB=$(echo "$PROJECT_FILE" | sed 's/\\//g')
 WORKSPACE_FILE_NB=$(echo "$WORKSPACE_FILE" | sed 's/\\//g')
 
 if [ "$PROJECT_FILE" != "" ]; then
-	BUILD_SETTINGS=$(xcodebuild -showBuildSettings -project "$PROJECT_FILE_NB" -scheme "$SCHEME_NAME")
+	BUILD_SETTINGS=$(xcodebuild -showBuildSettings -project "$PROJECT_FILE_NB" -scheme "$SCHEME_NAME" 2>&1)
 else
-	BUILD_SETTINGS=$(xcodebuild -showBuildSettings -workspace "$WORKSPACE_FILE_NB" -scheme "$SCHEME_NAME")
+	BUILD_SETTINGS=$(xcodebuild -showBuildSettings -workspace "$WORKSPACE_FILE_NB" -scheme "$SCHEME_NAME" 2>&1)
 fi
 
 # Project Properties
 DEBUG_APP_PATH=$(parseDebugAppPath "$BUILD_SETTINGS")
-PACKAGE_BUNDLE=$(parseBundleName "$BUILD_SETTINGS")
+if [ "$PACKAGE" != "" ]; then
+	PACKAGE_BUNDLE=$PACKAGE
+else
+	PACKAGE_BUNDLE=$(parseBundleName "$BUILD_SETTINGS")
+fi
 
 if [ "$VERSION" = "" ]; then
 	VERSION=$(parseVersionNumber "$BUILD_SETTINGS")
