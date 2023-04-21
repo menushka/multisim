@@ -262,9 +262,9 @@ if $build_flag; then
 	printf "\x1B[0m\x1B[34m"
 	# Build project
 	if [ "$PROJECT_FILE" != "" ]; then
-		xcodebuild -arch x86_64 -sdk iphonesimulator$VERSION -project "$PROJECT_FILE_NB" -scheme "$SCHEME_NAME" -parallelizeTargets  | perl -ne 'print " - Built " . $1 . " of " . $2 . "\n" if /=== BUILD TARGET (.*) OF PROJECT (.*) WITH CONFIGURATION Debug ===/s'
+		xcodebuild -arch x86_64 -sdk iphonesimulator$VERSION -project "$PROJECT_FILE_NB" -scheme "$SCHEME_NAME" -parallelizeTargets 2>&1 | perl -ne 'print " - Built " . $1 . " of " . $2 . "\n" if /=== BUILD TARGET (.*) OF PROJECT (.*) WITH CONFIGURATION Debug ===/s'
 	else
-		xcodebuild -arch x86_64 -sdk iphonesimulator$VERSION -workspace "$WORKSPACE_FILE_NB" -scheme "$SCHEME_NAME" -parallelizeTargets  | perl -ne 'print " - Built " . $1 . " of " . $2 . "\n" if /=== BUILD TARGET (.*) OF PROJECT (.*) WITH CONFIGURATION Debug ===/s'
+		xcodebuild -arch x86_64 -sdk iphonesimulator$VERSION -workspace "$WORKSPACE_FILE_NB" -scheme "$SCHEME_NAME" -parallelizeTargets 2>&1 | perl -ne 'print " - Built " . $1 . " of " . $2 . "\n" if /=== BUILD TARGET (.*) OF PROJECT (.*) WITH CONFIGURATION Debug ===/s'
 	fi
 	
 	printf "\x1B[0m\x1B[34m"
